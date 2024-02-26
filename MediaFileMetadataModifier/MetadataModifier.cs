@@ -16,7 +16,7 @@ namespace MediaFileMetadataModifier
         private readonly string _file;
 
         private static string[] ImageExts = { ".png", ".jpg", ".jpeg", ".gif" };
-        private static string[] VideoExts = { ".mp4",".mov" };
+        private static string[] VideoExts = { ".mp4", ".mov" };
 
         public MetadataModifier(string file)
         {
@@ -34,7 +34,7 @@ namespace MediaFileMetadataModifier
             {
                 return await new VideoMetadataModifier(_file).Modify();
             }
-            
+
             return "Unknown File Extension";
         }
 
@@ -67,6 +67,32 @@ namespace MediaFileMetadataModifier
             return "";
         }
 
+        public static async Task SetValueIfEmpty(ExifTool et, IList<Tag> originTagList, string file, string[] names, string value)
+        {
+            foreach (var name in names)
+            {
+                var tag = originTagList.FirstOrDefault(t => t.Name == name);
+                if (tag == null)
+                {
+                    await et.OverwriteTagsAsync(file, new[]
+                    {
+                        new SetOperation(new Tag(name, value))
+                    }, FileWriteMode.OverwriteOriginal);
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(tag.Value))
+                {
+                    continue;
+                }
+
+                await et.OverwriteTagsAsync(file, new[]
+                {
+                    new SetOperation(new Tag(name, value))
+                }, FileWriteMode.OverwriteOriginal);
+            }
+        }
+
         /// <summary>
         /// 从文件路径中，提取照片的拍摄日期。
         /// 这里不具备普遍性，后续使用需要根据实际情况修改。
@@ -95,17 +121,17 @@ namespace MediaFileMetadataModifier
     abstract class BaseMetadataModifier
     {
 
-        private readonly string _file;
+        protected readonly string File;
 
         protected BaseMetadataModifier(string file)
         {
-            _file = file;
+            File = file;
         }
 
         public async Task<string> Modify()
         {
             var et = new ExifTool(new ExifToolOptions());
-            var tagList = await et.GetTagsAsync(_file);
+            var tagList = (await et.GetTagsAsync(File)).ToList();
 
             var time = GetOriginalDate(tagList);
 
@@ -114,7 +140,9 @@ namespace MediaFileMetadataModifier
                 return "Cannot Found Date Meta Info";
             }
 
-            await et.OverwriteTagsAsync(_file, new List<Operation>()
+            await Update(et, tagList, time);
+
+            await et.OverwriteTagsAsync(File, new List<Operation>()
             {
                 new SetOperation(new Tag("FileModifyDate",time)),
                 new SetOperation(new Tag("FileCreateDate",time)),
@@ -124,18 +152,22 @@ namespace MediaFileMetadataModifier
             return "";
         }
 
-        private string GetOriginalDate(IEnumerable<Tag> tagList)
+        protected abstract Task Update(ExifTool et, IList<Tag> originTagList, string time);
+
+        private string GetOriginalDate(IList<Tag> tagList)
         {
-            var time = MetadataModifierHelper.GetValue(tagList.ToList(),
+            var time = MetadataModifierHelper.GetValue(tagList,
                 GetTimeTagNames());
 
             if (time == "")
             {
-                time = MetadataModifierHelper.GetDateFromFilePath(_file);
+                time = MetadataModifierHelper.GetDateFromFilePath(File);
+                // time = MetadataModifierHelper.GetValue(tagList, new[] { "FileModifyDate", "FileCreateDate" });
             }
 
             return time;
         }
+
 
         protected abstract string[] GetTimeTagNames();
 
@@ -148,6 +180,12 @@ namespace MediaFileMetadataModifier
         {
         }
 
+        protected override Task Update(ExifTool et, IList<Tag> originTagList, string time)
+        {
+            return MetadataModifierHelper.SetValueIfEmpty(et, originTagList, File,
+                new[] { "DateTimeOriginal", "CreateDate", "DateCreated" }, time);
+        }
+
         protected override string[] GetTimeTagNames()
         {
             return new[]
@@ -157,13 +195,19 @@ namespace MediaFileMetadataModifier
             };
         }
 
-  
+
     }
 
     class VideoMetadataModifier : BaseMetadataModifier
     {
         public VideoMetadataModifier(string file) : base(file)
         {
+        }
+
+        protected override Task Update(ExifTool et, IList<Tag> originTagList, string time)
+        {
+            return MetadataModifierHelper.SetValueIfEmpty(et, originTagList, File,
+                new[] { "MediaCreateDate", "TrackCreateDate", "MediaModifyDate", "TrackModifyDate", "DateTimeOriginal" }, time);
         }
 
         protected override string[] GetTimeTagNames()
