@@ -4,9 +4,28 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MediaFileMetadataModifier"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        xmlns:hc="https://handyorg.github.io/handycontrol"
+        mc:Ignorable="d" WindowStartupLocation="CenterScreen"
+        Title="多媒体文件日期元数据修改" Height="400" Width="600">
+    <Grid Margin="5 2" d:DataContext="{d:DesignInstance local:ModifyOptions}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="*"></RowDefinition>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+   
+            <TextBox hc:InfoElement.Placeholder="待处理文件目录"  Style="{StaticResource TextBoxExtend}" 
+                     Margin="0 0 0 4" 
+                     Text="{Binding FolderPath}"></TextBox>
+
+            <Button Margin="0 8 0 4" Width="240" HorizontalAlignment="Left"
+                    Click="StartButton_OnClick">开始执行</Button>
+        </StackPanel>
+
+
+        <TextBox Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True" Height="Auto" IsReadOnly="True" x:Name="InfoTextBox"
+                 VerticalScrollBarVisibility="Auto"></TextBox>
 
     </Grid>
 </Window>
